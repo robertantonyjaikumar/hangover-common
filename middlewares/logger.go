@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	ginzap "github.com/gin-contrib/zap"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap/zapcore"
 	"io/ioutil"
 	"time"
@@ -71,15 +70,15 @@ func LogResponseAndRequestBodyMiddleware(logger *zap.Logger, conf *ginzap.Config
 			if conf.TimeFormat != "" {
 				fields = append(fields, zap.String("time", end.Format(conf.TimeFormat)))
 			}
-			if conf.TraceID {
-				fields = append(
-					fields,
-					zap.String(
-						"traceID",
-						trace.SpanFromContext(c.Request.Context()).SpanContext().TraceID().String(),
-					),
-				)
-			}
+			//if conf.TraceID {
+			//	fields = append(
+			//		fields,
+			//		zap.String(
+			//			"traceID",
+			//			trace.SpanFromContext(c.Request.Context()).SpanContext().TraceID().String(),
+			//		),
+			//	)
+			//}
 
 			if conf.Context != nil {
 				fields = append(fields, conf.Context(c)...)
