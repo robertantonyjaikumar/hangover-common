@@ -1,0 +1,32 @@
+# Go binaries
+/bin/
+/obj/
+/build/
+
+# Dependency directories
+/vendor/
+
+# Go workspace files
+Gopkg.lock
+Gopkg.toml
+
+# IDE/Editor folders
+.vscode/
+/.idea/
+/*.swp
+*.sublime-workspace
+*.sublime-project
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+*.out
+coverage/
+
+# Test output
+*.test
+
+# Go module files
+go.sum
