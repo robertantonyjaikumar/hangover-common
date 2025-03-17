@@ -12,8 +12,6 @@ func init() {
 
 	productionConfig := zap.NewProductionConfig()
 	encoderConfig := zap.NewProductionEncoderConfig()
-	//zapcore.TimeEncoderOfLayout("Jan _2 15:04:05.000000000")
-	//encoderConfig.StacktraceKey = "" // to hide stacktrace info
 	productionConfig.EncoderConfig = encoderConfig
 
 	zapLog, err = productionConfig.Build(zap.AddCallerSkip(1))
