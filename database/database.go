@@ -1,6 +1,8 @@
 package database
 
 import (
+	"fmt"
+
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/robertantonyjaikumar/hangover-common/config"
 	"github.com/robertantonyjaikumar/hangover-common/logger"
@@ -20,25 +22,21 @@ var (
 )
 
 func InitDb() *gorm.DB {
-	var dbConfig *config.DBConfig
+	dbConfig := config.LoadDatabaseConfig()
 	if config.CFG.V.GetBool("database.single_source") {
 		dbConfig = config.LoadDatabaseVaultConfig()
-	} else {
-		dbConfig = config.LoadDatabaseConfig()
-
 	}
 
 	if config.CFG.V.GetString("env") == HOSTED {
 		return connectMultipleDB(dbConfig)
-	} else {
-		return connectDB(dbConfig)
 	}
+	return connectDB(dbConfig)
 }
 
 // Returns an initialized *gorm.DB struct
 func connectDB(database *config.DBConfig) *gorm.DB {
 
-	dsn := database.Driver + "://" + database.Creds.Username + ":" + database.Creds.Password + "@" + database.Hosts.Master + ":" + database.Port + "/" + database.DBName + "?" + "application_name=" + config.CFG.GetServiceName()
+	dsn := buildDSN(database.Driver, database.Creds.Username, database.Creds.Password, database.Hosts.Master, database.Port, database.DBName)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -68,7 +66,7 @@ func RunMigrations(migrations Migrations) {
 func connectMultipleDB(database *config.DBConfig) *gorm.DB {
 	gormLogger := zapgorm2.New(logger.GetZapLogger())
 	gormLogger.SetAsDefault()
-	dsn := database.Driver + "://" + database.Creds.Username + ":" + database.Creds.Password + "@" + database.Hosts.Master + ":" + database.Port + "/" + database.DBName + "?" + "application_name=" + config.CFG.GetServiceName()
+	dsn := buildDSN(database.Driver, database.Creds.Username, database.Creds.Password, database.Hosts.Master, database.Port, database.DBName)
 	// Register augments the provided driver with tracing, enabling it to be loaded by
 	// gormtrace.Open.
 	sqltrace.Register(
@@ -89,21 +87,10 @@ func connectMultipleDB(database *config.DBConfig) *gorm.DB {
 		return nil
 	}
 
-	var (
-		replicas, sources []gorm.Dialector
-	)
+	//Create db sources(write instances) and replicas(read) from config
+	sources := createDialectors(database.Driver, database.Creds.Username, database.Creds.Password, database.Hosts.Sources, database.Port, database.DBName)
+	replicas := createDialectors(database.Driver, database.Creds.Username, database.Creds.Password, database.Hosts.Replicas, database.Port, database.DBName)
 
-	//Create db sources(write instances) from config
-	for _, host := range database.Hosts.Sources {
-		dsn := database.Driver + "://" + database.Creds.Username + ":" + database.Creds.Password + "@" + host + ":" + database.Port + "/" + database.DBName + "?" + "application_name=" + config.CFG.GetServiceName()
-		sources = append(sources, postgres.Open(dsn))
-	}
-
-	//Create db replicas(read instances) from config
-	for _, host := range database.Hosts.Replicas {
-		dsn := database.Driver + "://" + database.Creds.Username + ":" + database.Creds.Password + "@" + host + ":" + database.Port + "/" + database.DBName + "?" + "application_name=" + config.CFG.GetServiceName()
-		replicas = append(replicas, postgres.Open(dsn))
-	}
 	//logger.Info("DB URLs", zap.Any("sources", sources), zap.Any("replicas", replicas))
 	err = db.Use(dbresolver.Register(dbresolver.Config{
 		Sources:  sources,
@@ -117,4 +104,17 @@ func connectMultipleDB(database *config.DBConfig) *gorm.DB {
 	}
 
 	return db
+}
+
+func buildDSN(driver, username, password, host, port, dbName string) string {
+	return fmt.Sprintf("%s://%s:%s@%s:%s/%s?application_name=%s", driver, username, password, host, port, dbName, config.CFG.GetServiceName())
+}
+
+func createDialectors(driver, username, password string, hosts []string, port, dbName string) []gorm.Dialector {
+	var dialectors []gorm.Dialector
+	for _, hosts := range hosts {
+		dsn := buildDSN(driver, username, password, hosts, port, dbName)
+		dialectors = append(dialectors, postgres.Open(dsn))
+	}
+	return dialectors
 }
